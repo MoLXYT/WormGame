@@ -19,7 +19,8 @@ public class MainMenuControllerUI : MonoBehaviour
 
     private void Awake()
     {
-        if (Instance != null)
+        // FIXED: Was "!= null", should be "== null"
+        if (Instance == null)
             Instance = this;
     }
 

@@ -1,66 +1,106 @@
 using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
 public class WormManager : MonoBehaviour
 {
     public static WormManager Instance;
-    [SerializeField] private int _nextWormTurnTime;
+
+    [SerializeField] private float _turnTransitionDelay = 2f;
 
     private Worm[] _worms;
     private Transform _wormCamera;
-    private int _currWorm;
+    private int _currWorm = -1;
+
+    // Public getter for current worm (useful for UI)
+    public Worm CurrentWorm => (_currWorm >= 0 && _currWorm < _worms.Length) ? _worms[_currWorm] : null;
 
     private void Awake()
     {
         if (Instance != null)
-            Destroy(this);
+            Destroy(gameObject);
         else
             Instance = this;
     }
 
     void Start()
     {
-        _worms = GameObject.FindObjectsOfType<Worm>();
+        _worms = FindObjectsOfType<Worm>();
         _wormCamera = Camera.main.transform;
 
+        // Assign IDs
         for (int i = 0; i < _worms.Length; i++)
         {
             _worms[i].wormID = i;
         }
+
+        // Start first turn
         NextWorm();
     }
 
-    public bool IsMyTurn(int i)
+    public bool IsMyTurn(int id)
     {
-        return i == _currWorm;
+        return id == _currWorm;
     }
 
     public void NextWorm()
     {
-
-        StartCoroutine(NextWormCRT());
+        StartCoroutine(NextWormCoroutine());
     }
 
-    private IEnumerator NextWormCRT()
+    private IEnumerator NextWormCoroutine()
     {
-    int nextWorm = _currWorm;
+        // Disable current worm's turn
+        _currWorm = -1;
 
-    do
+        // Wait for transition
+        yield return new WaitForSeconds(_turnTransitionDelay);
+
+        // Find next alive worm
+        int nextWorm = FindNextAliveWorm();
+
+        // Check for win condition (only one player left or none)
+        if (nextWorm == -1)
+        {
+            Debug.Log("Game Over! No worms left alive.");
+            yield break;
+        }
+
+        // Start next turn
+        _currWorm = nextWorm;
+
+        // Reset the new worm's movement distance
+        _worms[_currWorm].StartTurn();
+
+        // Reset timer
+        TimerController.Instance.ResetTime();
+
+        // Move camera to follow new worm
+        _wormCamera.SetParent(_worms[_currWorm].transform);
+        _wormCamera.localPosition = Vector3.back * 10;
+
+        Debug.Log($"It's now {_worms[_currWorm].gameObject.name}'s turn!");
+    }
+
+    private int FindNextAliveWorm()
     {
-        nextWorm++;
-        if (nextWorm >= _worms.Length)
-            nextWorm = 0;
+        int startIndex = _currWorm < 0 ? 0 : _currWorm;
+        int nextWorm = startIndex;
+        int attempts = 0;
 
-    } while (!_worms[nextWorm].IsAlive);
+        do
+        {
+            nextWorm++;
+            if (nextWorm >= _worms.Length)
+                nextWorm = 0;
 
-    _currWorm = -1;
+            attempts++;
 
-    yield return new WaitForSeconds(_nextWormTurnTime);
+            // Prevent infinite loop if all worms are dead
+            if (attempts > _worms.Length)
+                return -1;
 
-    _currWorm = nextWorm;
+        } while (!_worms[nextWorm].IsAlive);
 
-    _wormCamera.SetParent(_worms[_currWorm].transform);
-    _wormCamera.localPosition = Vector3.back * 10;
+        return nextWorm;
     }
 }

@@ -1,12 +1,12 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
 public class TimerController : MonoBehaviour
 {
     public static TimerController Instance;
-    [SerializeField] private float _defaultTime;
 
+    [SerializeField] private float _turnDuration = 60f;
+
+    private float _currentTime;
 
     private void Awake()
     {
@@ -16,15 +16,15 @@ public class TimerController : MonoBehaviour
             Instance = this;
     }
 
-    void Update()
+    private void Start()
     {
-        CheckInput();
+        _currentTime = _turnDuration;
     }
 
-    private void CheckInput()
+    void Update()
     {
-        _defaultTime -= Time.deltaTime;
-        if (_defaultTime <= 0)
+        _currentTime -= Time.deltaTime;
+        if (_currentTime <= 0)
         {
             ResetTime();
             WormManager.Instance.NextWorm();
@@ -33,6 +33,19 @@ public class TimerController : MonoBehaviour
 
     public void ResetTime()
     {
-        _defaultTime = 60;
+        // FIXED: Now uses the Inspector value instead of hardcoded 60
+        _currentTime = _turnDuration;
+    }
+
+    // NEW: Getter so UI can display the time
+    public float GetCurrentTime()
+    {
+        return _currentTime;
+    }
+
+    // NEW: Getter for max time (for UI progress bar)
+    public float GetTurnDuration()
+    {
+        return _turnDuration;
     }
 }
