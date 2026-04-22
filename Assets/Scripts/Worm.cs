@@ -17,14 +17,14 @@ public class Worm : MonoBehaviour
     [Header("Weapon Settings")]
     public float missileForce = 10f;
 
-    // Public state
-    public int wormID;
+    // Public state - assigned by WormManager
+    [HideInInspector] public int wormID = -1;
     public bool IsAlive = true;
 
-    // Movement tracking - these are PUBLIC so UI can read them
+    // Movement tracking
     private float _distanceMoved = 0f;
     public float DistanceRemaining => maxMoveDistance - _distanceMoved;
-    public float DistancePercent => _distanceMoved / maxMoveDistance;
+    public float DistancePercent => maxMoveDistance > 0 ? _distanceMoved / maxMoveDistance : 0;
 
     // Private references (cached for performance)
     private SpriteRenderer _spriteRenderer;
@@ -33,21 +33,55 @@ public class Worm : MonoBehaviour
 
     // State
     public bool _isGrounded = true;
+    private bool _hasShot = false;
 
-    public bool IsTurn => WormManager.Instance.IsMyTurn(wormID);
+    /// <summary>
+    /// Returns true only if:
+    /// - WormManager exists
+    /// - Game is not over
+    /// - Not transitioning between turns
+    /// - It's actually this worm's turn
+    /// - This worm is alive
+    /// </summary>
+    public bool IsTurn
+    {
+        get
+        {
+            // Safety checks
+            if (WormManager.Instance == null)
+                return false;
+
+            if (!IsAlive)
+                return false;
+
+            // This does all the checking (game over, transitioning, correct ID)
+            return WormManager.Instance.IsMyTurn(wormID);
+        }
+    }
 
     void Start()
     {
         _spriteRenderer = GetComponent<SpriteRenderer>();
         _rigidbody = GetComponent<Rigidbody2D>();
         _mainCam = Camera.main;
+
+        // Hide gun at start (will show when it's our turn)
+        if (_currGun != null)
+            _currGun.gameObject.SetActive(false);
     }
 
     void Update()
     {
-        if (!IsTurn || !IsAlive)
+        // CRITICAL: Only do anything if it's our turn
+        if (!IsTurn)
+        {
+            // Make sure gun is hidden when not our turn
+            if (_currGun != null && _currGun.gameObject.activeSelf)
+                _currGun.gameObject.SetActive(false);
             return;
+        }
 
+        // It's our turn - handle input
         RotateGun();
         HandleMovement();
         HandleJump();
@@ -67,7 +101,7 @@ public class Worm : MonoBehaviour
             return;
         }
 
-        if (horizInput != 0)
+        if (Mathf.Abs(horizInput) > 0.01f)
         {
             EnableGun(false);
 
@@ -105,12 +139,18 @@ public class Worm : MonoBehaviour
 
     private void HandleShooting()
     {
+        // Prevent shooting multiple times per turn
+        if (_hasShot)
+            return;
+
         // Can only shoot when not moving
-        if (Input.GetAxis("Horizontal") != 0)
+        if (Mathf.Abs(Input.GetAxis("Horizontal")) > 0.01f)
             return;
 
         if (Input.GetKeyDown(KeyCode.Mouse0))
         {
+            _hasShot = true;
+
             // Create bullet
             Rigidbody2D bullet = Instantiate(
                 _bulletPrefab,
@@ -124,17 +164,29 @@ public class Worm : MonoBehaviour
             // Destroy after 5 seconds
             Destroy(bullet.gameObject, 5f);
 
-            // Hide gun and end turn
+            // Hide gun
             EnableGun(false);
-            TimerController.Instance.ResetTime();
 
-            if (IsTurn)
-                WormManager.Instance.NextWorm();
+            Debug.Log($"{gameObject.name} fired!");
+
+            // End turn after a short delay (let bullet travel)
+            Invoke(nameof(EndTurnAfterShot), 0.5f);
+        }
+    }
+
+    private void EndTurnAfterShot()
+    {
+        if (WormManager.Instance != null)
+        {
+            WormManager.Instance.NextWorm();
         }
     }
 
     private void RotateGun()
     {
+        if (_currGun == null || _mainCam == null)
+            return;
+
         Vector3 mouseWorld = _mainCam.ScreenToWorldPoint(Input.mousePosition);
         Vector3 direction = (mouseWorld - transform.position).normalized;
 
@@ -144,24 +196,32 @@ public class Worm : MonoBehaviour
 
     private void EnableGun(bool enable)
     {
-        _currGun.gameObject.SetActive(enable);
+        if (_currGun != null)
+            _currGun.gameObject.SetActive(enable);
     }
 
-    // Called by WormManager when this worm's turn starts
+    /// <summary>
+    /// Called by WormManager when this worm's turn starts.
+    /// </summary>
     public void StartTurn()
     {
         _distanceMoved = 0f;
+        _hasShot = false;
+        EnableGun(true);
+
+        Debug.Log($"{gameObject.name}: My turn started! Distance reset to 0.");
     }
 
     private void OnTriggerEnter2D(Collider2D collision)
     {
+        if (!IsAlive)
+            return;
+
         if (collision.CompareTag("bullet"))
         {
-            // Deal 25 damage (was 10 - increased for faster gameplay)
+            // Deal damage (25 = dies in 4 hits)
             _wormHealth.ChangeHealth(-25);
-
-            if (IsTurn)
-                WormManager.Instance.NextWorm();
+            Debug.Log($"{gameObject.name} was hit! Health changed by -25");
         }
     }
 

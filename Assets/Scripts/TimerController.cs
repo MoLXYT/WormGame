@@ -23,9 +23,19 @@ public class TimerController : MonoBehaviour
 
     void Update()
     {
+        // Don't count down if game is over
+        if (WormManager.Instance != null && WormManager.Instance.IsGameOver)
+            return;
+
+        // Don't count down if no active worm (transitioning)
+        if (WormManager.Instance != null && WormManager.Instance.CurrentWorm == null)
+            return;
+
         _currentTime -= Time.deltaTime;
+
         if (_currentTime <= 0)
         {
+            Debug.Log("Time's up! Switching turns...");
             ResetTime();
             WormManager.Instance.NextWorm();
         }
@@ -33,17 +43,14 @@ public class TimerController : MonoBehaviour
 
     public void ResetTime()
     {
-        // FIXED: Now uses the Inspector value instead of hardcoded 60
         _currentTime = _turnDuration;
     }
 
-    // NEW: Getter so UI can display the time
     public float GetCurrentTime()
     {
         return _currentTime;
     }
 
-    // NEW: Getter for max time (for UI progress bar)
     public float GetTurnDuration()
     {
         return _turnDuration;

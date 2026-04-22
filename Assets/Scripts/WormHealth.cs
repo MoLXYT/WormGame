@@ -3,44 +3,90 @@ using UnityEngine;
 
 public class WormHealth : MonoBehaviour
 {
-    private int _health;
+    [Header("Health Settings")]
     public int MaxHealth = 100;
 
+    [Header("UI Reference")]
     [SerializeField] private TMP_Text _healthText;
 
-    private Worm _worm; // reference to Worm script
+    // Current health
+    private int _health;
+
+    // Reference to Worm component
+    private Worm _worm;
 
     void Start()
     {
         _health = MaxHealth;
-        _healthText.SetText(_health.ToString());
+        _worm = GetComponent<Worm>();
 
-        _worm = GetComponent<Worm>(); // get Worm script
+        UpdateHealthDisplay();
+
+        Debug.Log($"{gameObject.name} initialized with {_health} HP");
     }
 
-    internal void ChangeHealth(int change)
+    /// <summary>
+    /// Changes health by the given amount. Negative values deal damage.
+    /// </summary>
+    public void ChangeHealth(int change)
     {
+        int previousHealth = _health;
         _health += change;
 
+        // Clamp health
         if (_health > MaxHealth)
             _health = MaxHealth;
-        else if (_health <= 0)
-        {
+        else if (_health < 0)
             _health = 0;
+
+        UpdateHealthDisplay();
+
+        Debug.Log($"{gameObject.name}: Health {previousHealth} -> {_health}");
+
+        // Check for death
+        if (_health <= 0)
+        {
             Die();
         }
+    }
 
-        _healthText.SetText(_health.ToString());
+    /// <summary>
+    /// Returns current health value.
+    /// </summary>
+    public int GetHealth()
+    {
+        return _health;
+    }
+
+    private void UpdateHealthDisplay()
+    {
+        if (_healthText != null)
+        {
+            _healthText.SetText(_health.ToString());
+        }
     }
 
     private void Die()
     {
-        Debug.Log(gameObject.name + " died!");
+        Debug.Log($"");
+        Debug.Log($"*** {gameObject.name} DIED! ***");
+        Debug.Log($"");
 
-        _worm.IsAlive = false;
+        // Mark worm as dead
+        if (_worm != null)
+        {
+            _worm.IsAlive = false;
+        }
 
+        // Notify WormManager that this worm died
+        // This will check for a winner
+        if (WormManager.Instance != null)
+        {
+            WormManager.Instance.OnWormDied(_worm);
+        }
+
+        // Disable the worm GameObject
+        // Using SetActive(false) to completely disable it
         gameObject.SetActive(false);
-
-        WormManager.Instance.NextWorm();
     }
 }
