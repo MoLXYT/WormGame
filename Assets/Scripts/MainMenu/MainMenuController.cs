@@ -1,87 +1,154 @@
 using DG.Tweening;
-using System;
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 public class MainMenuController : MonoBehaviour
 {
-    [SerializeField] private MainMenuControllerUI _mainMenuUI;
-    [Header("Buttons on main canvas")]
-    [SerializeField] private Button _playButton;    
-    [SerializeField] private Button _optionsButton;
+    [Header("Main Menu Buttons")]
+    [SerializeField] private Button _playButton;
+    [SerializeField] private Button _aboutButton;
     [SerializeField] private Button _quitButton;
-    [SerializeField] private Button _closeStartCanvasBtn;
-    [Header("Audio properties")]
-    [SerializeField] private Button _audioBtnPlayPause;
+
+    [Header("About Panel")]
+    [SerializeField] private CanvasGroup _aboutPanel;
+    [SerializeField] private Button _aboutBackButton;
+
+    [Header("Audio")]
+    [SerializeField] private Button _audioToggleButton;
     [SerializeField] private AudioSource _audioSource;
-    [Header("Buttons on PlayWindow")]
-    [SerializeField] private Button _playGameBtn;
-    [Header("AudioImages")]
     [SerializeField] private GameObject _muteIcon;
     [SerializeField] private GameObject _unmuteIcon;
 
-    private int _playSceneIndex = 1;
+    [Header("Scene Settings")]
+    [SerializeField] private int _gameSceneIndex = 1;
 
-    private bool _isActive = true;
+    [Header("Animation Settings")]
+    [SerializeField] private float _fadeDuration = 0.3f;
+
+    private bool _isMusicPlaying = true;
 
     private void Awake()
     {
-        _playButton.onClick.AddListener(OnPlayBtnClick);
-        _optionsButton.onClick.AddListener(OnOptionsBtnClick);
-        _quitButton.onClick.AddListener(OnQuitBtnclick);
-        _playGameBtn.onClick.AddListener(LoadPlayScene);
-        _audioBtnPlayPause.onClick.AddListener(MuteMusic);
+        // Main menu buttons
+        _playButton.onClick.AddListener(OnPlayClicked);
+        _aboutButton.onClick.AddListener(OnAboutClicked);
+        _quitButton.onClick.AddListener(OnQuitClicked);
 
-        _closeStartCanvasBtn.onClick.AddListener(() => { _mainMenuUI.ShowStartCanvas(false); });
+        // About panel back button
+        if (_aboutBackButton != null)
+            _aboutBackButton.onClick.AddListener(CloseAboutPanel);
 
+        // Audio toggle (optional - only if assigned)
+        if (_audioToggleButton != null)
+            _audioToggleButton.onClick.AddListener(ToggleMusic);
+
+        // Ensure About panel starts hidden
+        if (_aboutPanel != null)
+        {
+            _aboutPanel.alpha = 0f;
+            _aboutPanel.interactable = false;
+            _aboutPanel.blocksRaycasts = false;
+            _aboutPanel.gameObject.SetActive(false);
+        }
     }
 
-    public void PlayaAudioSong(bool play)
+    private void OnPlayClicked()
     {
+        Debug.Log("Loading game scene...");
+
+        // Destroy the DontDestroyOnLoad music object so it stops when game starts
+        GameObject menuMusic = GameObject.Find("MainMusicAudioSource");
+        if (menuMusic != null)
+        {
+            Destroy(menuMusic);
+        }
+
+        SceneManager.LoadScene(_gameSceneIndex);
+    }
+
+    private void OnAboutClicked()
+    {
+        Debug.Log("About button clicked - showing panel");
+        ShowAboutPanel();
+    }
+
+    private void ShowAboutPanel()
+    {
+        if (_aboutPanel == null)
+        {
+            Debug.LogWarning("About panel not assigned!");
+            return;
+        }
+
+        // Disable main menu buttons
+        SetMainMenuButtonsInteractable(false);
+
+        // Show and fade in the About panel
+        _aboutPanel.gameObject.SetActive(true);
+        _aboutPanel.DOFade(1f, _fadeDuration).OnComplete(() =>
+        {
+            _aboutPanel.interactable = true;
+            _aboutPanel.blocksRaycasts = true;
+        });
+    }
+
+    public void CloseAboutPanel()
+    {
+        Debug.Log("Closing About panel");
+
+        if (_aboutPanel == null) return;
+
+        _aboutPanel.interactable = false;
+        _aboutPanel.blocksRaycasts = false;
+
+        // Fade out and hide
+        _aboutPanel.DOFade(0f, _fadeDuration).OnComplete(() =>
+        {
+            _aboutPanel.gameObject.SetActive(false);
+            // Re-enable main menu buttons
+            SetMainMenuButtonsInteractable(true);
+        });
+    }
+
+    private void SetMainMenuButtonsInteractable(bool interactable)
+    {
+        if (_playButton != null) _playButton.interactable = interactable;
+        if (_aboutButton != null) _aboutButton.interactable = interactable;
+        if (_quitButton != null) _quitButton.interactable = interactable;
+    }
+
+    private void OnQuitClicked()
+    {
+        Debug.Log("QUIT BUTTON CLICKED!");
+
+        #if UNITY_EDITOR
+            Debug.Log("Stopping Editor play mode...");
+            UnityEditor.EditorApplication.isPlaying = false;
+        #else
+            Debug.Log("Calling Application.Quit()...");
+            Application.Quit();
+        #endif
+    }
+
+    private void ToggleMusic()
+    {
+        if (_audioSource == null) return;
+
+        _isMusicPlaying = !_isMusicPlaying;
+        _audioSource.mute = !_isMusicPlaying;
+
+        if (_muteIcon != null) _muteIcon.SetActive(!_isMusicPlaying);
+        if (_unmuteIcon != null) _unmuteIcon.SetActive(_isMusicPlaying);
+    }
+
+    public void PlayMusic(bool play)
+    {
+        if (_audioSource == null) return;
+
         if (play)
             _audioSource.Play();
         else
             _audioSource.Stop();
-    }
-
-    private void MuteMusic()
-    {
-        _audioSource.mute = _isActive;
-        _isActive = !_isActive;
-
-        _muteIcon.SetActive(!_isActive);
-        _unmuteIcon.SetActive(_isActive);
-    }
-
-    private void OnDisable()
-    {
-        //_mainMenuUI.ShowStartCanvas(false);
-        //_mainMenuUI.ShowStartCanvas(false);
-    }
-
-    private void LoadPlayScene()
-    {
-        SceneManager.LoadScene(_playSceneIndex);
-    }
-
-    private void OnPlayBtnClick()
-    {
-        Debug.Log("Play btn clicked!");
-        _mainMenuUI.ShowStartCanvas(true);
-    }
-
-
-    private void OnOptionsBtnClick()
-    {
-        Debug.Log("Options btn clicked!");
-    }
-
-    private void OnQuitBtnclick()
-    {
-        _mainMenuUI.ShowQuitCanvas(true);
-        Debug.Log("Quit btn clicked");
     }
 }
